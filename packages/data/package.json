@@ -1,0 +1,39 @@
+{
+  "name": "@johto-ai/tcg-data",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Versioned Pokémon TCG SQLite snapshot and portable snapshot descriptor.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mega-blastoise/pokemon-tcg-client.git",
+    "directory": "packages/data"
+  },
+  "files": [
+    "dist",
+    "data/pokemon-data.sqlite3.db",
+    "data/manifest.json",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest": "./data/manifest.json",
+    "./database": "./data/pokemon-data.sqlite3.db",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "peerDependencies": {
+    "@johto-ai/tcg-client": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@johto-ai/tcg-client": {
+      "optional": true
+    }
+  }
+}

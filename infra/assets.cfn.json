@@ -1,0 +1,414 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Private immutable Pokemon TCG assets through CloudFront OAC; scoped GitHub OIDC publication.",
+  "Parameters": {
+    "BucketName": {
+      "Type": "String",
+      "AllowedPattern": "[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]"
+    },
+    "GitHubOwner": { "Type": "String", "AllowedPattern": "[A-Za-z0-9-]+" },
+    "GitHubRepository": {
+      "Type": "String",
+      "AllowedPattern": "[A-Za-z0-9._-]+"
+    },
+    "GitHubEnvironment": {
+      "Type": "String",
+      "Default": "production",
+      "AllowedPattern": "[A-Za-z0-9_-]+"
+    },
+    "GitHubOIDCProviderArn": {
+      "Type": "String",
+      "Description": "Existing IAM provider for token.actions.githubusercontent.com; create/verify it separately.",
+      "AllowedPattern": "arn:aws:iam::[0-9]{12}:oidc-provider/token.actions.githubusercontent.com"
+    },
+    "ExactOIDCSubject": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional exact subject when GitHub immutable/custom OIDC claims are enabled; never use a wildcard."
+    },
+    "DomainName": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional asset hostname; omit to use the CloudFront hostname."
+    },
+    "CertificateArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional validated ACM certificate in us-east-1; required with DomainName."
+    },
+    "HostedZoneId": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional existing Route 53 zone for the selected domain."
+    }
+  },
+  "Rules": {
+    "DomainRequiresCertificate": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Or": [
+              {
+                "Fn::And": [
+                  { "Fn::Equals": [{ "Ref": "DomainName" }, ""] },
+                  { "Fn::Equals": [{ "Ref": "CertificateArn" }, ""] }
+                ]
+              },
+              {
+                "Fn::And": [
+                  {
+                    "Fn::Not": [{ "Fn::Equals": [{ "Ref": "DomainName" }, ""] }]
+                  },
+                  {
+                    "Fn::Not": [
+                      { "Fn::Equals": [{ "Ref": "CertificateArn" }, ""] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Supply DomainName and its us-east-1 CertificateArn together."
+        }
+      ]
+    },
+    "DNSRequiresDomain": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Or": [
+              { "Fn::Equals": [{ "Ref": "HostedZoneId" }, ""] },
+              { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "DomainName" }, ""] }] }
+            ]
+          },
+          "AssertDescription": "HostedZoneId requires DomainName."
+        }
+      ]
+    }
+  },
+  "Conditions": {
+    "HasDomain": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "DomainName" }, ""] }]
+    },
+    "HasDNS": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "HostedZoneId" }, ""] }]
+    },
+    "HasExactSubject": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ExactOIDCSubject" }, ""] }]
+    }
+  },
+  "Resources": {
+    "AssetsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": { "Ref": "BucketName" },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [{ "ObjectOwnership": "BucketOwnerEnforced" }]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            { "ServerSideEncryptionByDefault": { "SSEAlgorithm": "AES256" } }
+          ]
+        },
+        "VersioningConfiguration": { "Status": "Enabled" },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": ["GET", "HEAD"],
+              "AllowedOrigins": ["*"],
+              "AllowedHeaders": ["*"],
+              "ExposedHeaders": ["ETag"],
+              "MaxAge": 86400
+            }
+          ]
+        }
+      }
+    },
+    "OriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-assets" },
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "AssetCachePolicy": {
+      "Type": "AWS::CloudFront::CachePolicy",
+      "Properties": {
+        "CachePolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-immutable" },
+          "MinTTL": 0,
+          "DefaultTTL": 31536000,
+          "MaxTTL": 31536000,
+          "ParametersInCacheKeyAndForwardedToOrigin": {
+            "EnableAcceptEncodingGzip": true,
+            "EnableAcceptEncodingBrotli": true,
+            "CookiesConfig": { "CookieBehavior": "none" },
+            "HeadersConfig": { "HeaderBehavior": "none" },
+            "QueryStringsConfig": { "QueryStringBehavior": "none" }
+          }
+        }
+      }
+    },
+    "AssetOriginRequestPolicy": {
+      "Type": "AWS::CloudFront::OriginRequestPolicy",
+      "Properties": {
+        "OriginRequestPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-asset-cors" },
+          "CookiesConfig": { "CookieBehavior": "none" },
+          "QueryStringsConfig": { "QueryStringBehavior": "none" },
+          "HeadersConfig": {
+            "HeaderBehavior": "whitelist",
+            "Headers": [
+              "Origin",
+              "Access-Control-Request-Method",
+              "Access-Control-Request-Headers"
+            ]
+          }
+        }
+      }
+    },
+    "AssetHeadersPolicy": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-asset-headers" },
+          "CorsConfig": {
+            "AccessControlAllowCredentials": false,
+            "AccessControlAllowHeaders": { "Items": ["*"] },
+            "AccessControlAllowMethods": {
+              "Items": ["GET", "HEAD", "OPTIONS"]
+            },
+            "AccessControlAllowOrigins": { "Items": ["*"] },
+            "AccessControlExposeHeaders": {
+              "Items": ["ETag", "Content-Length"]
+            },
+            "AccessControlMaxAgeSec": 86400,
+            "OriginOverride": true
+          },
+          "SecurityHeadersConfig": {
+            "ContentTypeOptions": { "Override": true },
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "IncludeSubdomains": false,
+              "Preload": false,
+              "Override": true
+            }
+          }
+        }
+      }
+    },
+    "AssetsDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "IPV6Enabled": true,
+          "HttpVersion": "http2and3",
+          "PriceClass": "PriceClass_100",
+          "Aliases": {
+            "Fn::If": [
+              "HasDomain",
+              [{ "Ref": "DomainName" }],
+              { "Ref": "AWS::NoValue" }
+            ]
+          },
+          "ViewerCertificate": {
+            "Fn::If": [
+              "HasDomain",
+              {
+                "AcmCertificateArn": { "Ref": "CertificateArn" },
+                "SslSupportMethod": "sni-only",
+                "MinimumProtocolVersion": "TLSv1.2_2021"
+              },
+              { "CloudFrontDefaultCertificate": true }
+            ]
+          },
+          "Origins": [
+            {
+              "Id": "private-assets",
+              "DomainName": {
+                "Fn::GetAtt": ["AssetsBucket", "RegionalDomainName"]
+              },
+              "S3OriginConfig": { "OriginAccessIdentity": "" },
+              "OriginAccessControlId": { "Ref": "OriginAccessControl" }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "private-assets",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+            "CachedMethods": ["GET", "HEAD", "OPTIONS"],
+            "Compress": true,
+            "CachePolicyId": { "Ref": "AssetCachePolicy" },
+            "ResponseHeadersPolicyId": { "Ref": "AssetHeadersPolicy" },
+            "OriginRequestPolicyId": { "Ref": "AssetOriginRequestPolicy" }
+          },
+          "CustomErrorResponses": [
+            { "ErrorCode": 403, "ErrorCachingMinTTL": 0 },
+            { "ErrorCode": 404, "ErrorCachingMinTTL": 0 }
+          ]
+        }
+      }
+    },
+    "AssetsBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "AssetsBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "CloudFrontReadsOnlyPublicAssets",
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:GetObject",
+              "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/assets/*" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "RequireTLS",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                { "Fn::GetAtt": ["AssetsBucket", "Arn"] },
+                { "Fn::Sub": "${AssetsBucket.Arn}/*" }
+              ],
+              "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+            },
+            {
+              "Sid": "RequireCreateOnlyAssetWrites",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:PutObject",
+              "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/assets/*" },
+              "Condition": {
+                "Null": { "s3:if-none-match": "true" },
+                "Bool": { "s3:ObjectCreationOperation": "true" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "GitHubAssetPublisherRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "MaxSessionDuration": 3600,
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Federated": { "Ref": "GitHubOIDCProviderArn" } },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                  "token.actions.githubusercontent.com:sub": {
+                    "Fn::If": [
+                      "HasExactSubject",
+                      { "Ref": "ExactOIDCSubject" },
+                      {
+                        "Fn::Sub": "repo:${GitHubOwner}/${GitHubRepository}:environment:${GitHubEnvironment}"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "append-and-verify-assets",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "s3:ListBucket",
+                  "Resource": { "Fn::GetAtt": ["AssetsBucket", "Arn"] },
+                  "Condition": { "StringLike": { "s3:prefix": ["assets/*"] } }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "s3:GetObject",
+                  "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/assets/*" }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "s3:PutObject",
+                  "Resource": { "Fn::Sub": "${AssetsBucket.Arn}/assets/*" },
+                  "Condition": { "Null": { "s3:if-none-match": "false" } }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AssetDNSv4": {
+      "Type": "AWS::Route53::RecordSet",
+      "Condition": "HasDNS",
+      "Properties": {
+        "HostedZoneId": { "Ref": "HostedZoneId" },
+        "Name": { "Ref": "DomainName" },
+        "Type": "A",
+        "AliasTarget": {
+          "DNSName": { "Fn::GetAtt": ["AssetsDistribution", "DomainName"] },
+          "HostedZoneId": "Z2FDTNDATAQYW2",
+          "EvaluateTargetHealth": false
+        }
+      }
+    },
+    "AssetDNSv6": {
+      "Type": "AWS::Route53::RecordSet",
+      "Condition": "HasDNS",
+      "Properties": {
+        "HostedZoneId": { "Ref": "HostedZoneId" },
+        "Name": { "Ref": "DomainName" },
+        "Type": "AAAA",
+        "AliasTarget": {
+          "DNSName": { "Fn::GetAtt": ["AssetsDistribution", "DomainName"] },
+          "HostedZoneId": "Z2FDTNDATAQYW2",
+          "EvaluateTargetHealth": false
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "Bucket": { "Value": { "Ref": "AssetsBucket" } },
+    "DistributionId": { "Value": { "Ref": "AssetsDistribution" } },
+    "PublisherRoleArn": {
+      "Value": { "Fn::GetAtt": ["GitHubAssetPublisherRole", "Arn"] }
+    },
+    "AssetOrigin": {
+      "Value": {
+        "Fn::If": [
+          "HasDomain",
+          { "Fn::Sub": "https://${DomainName}" },
+          { "Fn::Sub": "https://${AssetsDistribution.DomainName}" }
+        ]
+      }
+    }
+  }
+}

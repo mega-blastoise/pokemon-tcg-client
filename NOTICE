@@ -1,0 +1,13 @@
+This repository's original software is provided under the accompanying MIT
+license. That software license does not license third-party trading-card
+artwork, printed text, trademarks, or imported datasets.
+
+Pokémon and associated names, artwork, and trading-card materials belong to
+their respective owners. This project is not an official Pokémon product.
+
+Dataset provenance must retain the authoritative mega-blastoise/pokemon-tcg-data
+fork identity, original PokemonTCG/pokemon-tcg-data attribution, and applicable
+TCGdex notices when that source is used. Review the applicable source terms
+before distributing imported content. Mirroring bytes is not a grant of rights.
+
+No original-card artwork is included in the client or tooling npm packages.

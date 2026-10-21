@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24.6.0, 26.x]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test
+      - run: bun run build
+      - name: Read the pinned baseline source
+        id: source
+        run: |
+          bun -e '
+            const config = await Bun.file("dataset-source.json").json();
+            if (config.repository !== "mega-blastoise/pokemon-tcg-data" || !/^[a-f0-9]{40}$/.test(config.commit)) throw new Error("Expected a full authoritative fork pin");
+            console.log(`repository=${config.repository}\ncommit=${config.commit}`);
+          ' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.commit }}
+          fetch-depth: 0
+          path: source-fork
+          persist-credentials: false
+      - run: bun run test:catalog
+        env:
+          TCG_SOURCE_DIR: source-fork
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run smoke

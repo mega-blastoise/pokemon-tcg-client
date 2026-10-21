@@ -1,0 +1,104 @@
+name: Release code
+
+on:
+  push:
+    tags: [tcg/v*]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tcg-code-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+  RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH || 'main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.6.0
+      - run: npm install --global npm@11.5.1
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/release.ts prepare code --tag "$RELEASE_TAG"
+      - run: bun run check
+      - run: bun run test
+      - run: bun run build
+      - name: Stamp and pack into a fresh release directory
+        run: bun scripts/release.ts prepare code --tag "$RELEASE_TAG" --output .release/code --notes docs/releases.md --write
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tcg-code-release
+          path: .release/code/artifact/
+          if-no-files-found: error
+          retention-days: 30
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24.6.0, 26.x]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: tcg-code-release
+          path: .release/artifact
+      - run: bun scripts/release.ts verify --directory .release/artifact
+      - run: bunx playwright install --with-deps chromium
+      - name: Smoke-test the exact packed exports
+        run: bun run smoke
+        env:
+          TCG_RELEASE_DIR: .release/artifact
+
+  publish:
+    needs: [build, smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.6.0
+      - run: npm install --global npm@11.5.1
+      - uses: actions/download-artifact@v8
+        with:
+          name: tcg-code-release
+          path: .release/artifact
+      - run: bun scripts/release.ts publish --directory .release/artifact
+      - run: bun scripts/release.ts publish --directory .release/artifact --execute
+      - name: Publish release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" .release/artifact/*.tgz .release/artifact/SHA256SUMS .release/artifact/release-plan.json --verify-tag --notes-file .release/artifact/notes.md
+          fi

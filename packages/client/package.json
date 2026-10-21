@@ -1,0 +1,61 @@
+{
+  "name": "@johto-ai/tcg-client",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Typed Pokémon TCG card and set client for Bun, Node.js and browsers.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mega-blastoise/pokemon-tcg-client.git",
+    "directory": "packages/client"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./dist/bun.js",
+      "node": "./dist/node.js",
+      "browser": "./dist/browser.js",
+      "default": "./dist/browser.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
+    },
+    "./query": {
+      "types": "./dist/query.d.ts",
+      "import": "./dist/query.js"
+    },
+    "./sqlite-schema": {
+      "types": "./dist/sqlite-schema.d.ts",
+      "import": "./dist/sqlite-schema.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24.6.0",
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "peerDependencies": {
+    "@johto-ai/tcg-data": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@johto-ai/tcg-data": {
+      "optional": true
+    }
+  }
+}

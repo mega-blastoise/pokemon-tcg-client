@@ -1,0 +1,14 @@
+node_modules/
+source-fork/
+accepted-assets/
+**/dist/
+**/*.tsbuildinfo
+.local/
+.release/
+.cache/
+coverage/
+packages/data/data/*.db
+packages/data/data/manifest.json
+playwright-report/
+test-results/
+.env

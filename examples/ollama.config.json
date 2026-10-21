@@ -1,0 +1,16 @@
+{
+  "endpoint": "http://dgx-spark.local:11434",
+  "model": "REPLACE_WITH_INSTALLED_MODEL_TAG",
+  "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "quantization": "REPLACE_WITH_INSTALLED_QUANTIZATION",
+  "ollamaVersion": "REPLACE_WITH_INSTALLED_VERSION",
+  "seed": 0,
+  "numPredict": 4096,
+  "numCtx": 8192,
+  "timeoutMs": 180000,
+  "environment": {
+    "machine": "REPLACE_WITH_SPARK_IDENTIFIER",
+    "driver": "REPLACE_WITH_OBSERVED_DRIVER_VERSION",
+    "runtime": "REPLACE_WITH_OBSERVED_RUNTIME_VERSION"
+  }
+}

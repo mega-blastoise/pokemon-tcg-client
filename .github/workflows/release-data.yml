@@ -1,0 +1,137 @@
+name: Release data
+
+on:
+  push:
+    tags: [tcg/data-v*]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tcg-data-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+  RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH || 'main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ASSET_ORIGIN: ${{ vars.ASSET_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.6.0
+      - run: npm install --global npm@11.5.1
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test
+      - run: bun run build
+      - name: Validate tag and pinned fork
+        id: source
+        run: |
+          bun scripts/release.ts prepare data --tag "$RELEASE_TAG"
+          bun -e '
+            const config = await Bun.file("dataset-source.json").json();
+            if (config.repository !== "mega-blastoise/pokemon-tcg-data" || !/^[a-f0-9]{40}$/.test(config.commit)) throw new Error("Pin the authoritative fork to a full commit SHA");
+            const bundle = config.assetBundle;
+            if (!bundle || !Number.isSafeInteger(bundle.runId) || bundle.runId < 1 || !Number.isSafeInteger(bundle.artifactId) || bundle.artifactId < 1 || !/^[a-f0-9]{64}$/.test(bundle.manifestSha256)) throw new Error("Pin a reviewed immutable assetBundle before a data release");
+            console.log(`repository=${config.repository}\ncommit=${config.commit}\nasset-run-id=${bundle.runId}\nasset-artifact-id=${bundle.artifactId}\nasset-manifest-sha256=${bundle.manifestSha256}`);
+          ' >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.commit }}
+          fetch-depth: 0
+          path: source-fork
+          persist-credentials: false
+      - name: Download the exact reviewed asset artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.source.outputs.asset-artifact-id }}
+          run-id: ${{ steps.source.outputs.asset-run-id }}
+          github-token: ${{ github.token }}
+          path: accepted-assets
+          merge-multiple: true
+      - name: Check the pinned accepted asset manifest
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ steps.source.outputs.asset-manifest-sha256 }}
+        run: |
+          bun -e '
+            const { createHash } = await import("node:crypto");
+            const bytes = new Uint8Array(await Bun.file("accepted-assets/assets/manifest.json").arrayBuffer());
+            if (createHash("sha256").update(bytes).digest("hex") !== process.env.EXPECTED_MANIFEST_SHA256) throw new Error("Accepted asset manifest differs from the tracked pin");
+          '
+      - run: bun run test:catalog
+        env:
+          TCG_SOURCE_DIR: source-fork
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run smoke
+      - name: Build and validate the complete snapshot twice
+        run: |
+          bun packages/tools/dist/cli.js build-snapshot --source source-fork --output .release/snapshot-a --release-version "${RELEASE_TAG#tcg/data-v}" --builder-commit "$GITHUB_SHA" --builder-version 0.0.0 --asset-manifest accepted-assets/assets/manifest.json --asset-origin "$ASSET_ORIGIN" --release-ready
+          bun packages/tools/dist/cli.js verify-snapshot --source source-fork --snapshot .release/snapshot-a --release-ready
+          bun packages/tools/dist/cli.js build-snapshot --source source-fork --output .release/snapshot-b --release-version "${RELEASE_TAG#tcg/data-v}" --builder-commit "$GITHUB_SHA" --builder-version 0.0.0 --asset-manifest accepted-assets/assets/manifest.json --asset-origin "$ASSET_ORIGIN" --release-ready
+          bun packages/tools/dist/cli.js verify-snapshot --source source-fork --snapshot .release/snapshot-b --release-ready
+          cmp .release/snapshot-a/pokemon-data.sqlite3.db .release/snapshot-b/pokemon-data.sqlite3.db
+          cmp .release/snapshot-a/manifest.json .release/snapshot-b/manifest.json
+          diff --recursive .release/snapshot-a/generated .release/snapshot-b/generated
+      - name: Pack the validated data artifact
+        run: bun scripts/release.ts prepare data --tag "$RELEASE_TAG" --source source-fork --snapshot .release/snapshot-a --output .release/data --notes docs/releases.md --write
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tcg-data-release
+          path: .release/data/artifact/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    environment: production
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      ASSET_ORIGIN: ${{ vars.ASSET_ORIGIN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.6.0
+      - run: npm install --global npm@11.5.1
+      - uses: actions/download-artifact@v8
+        with:
+          name: tcg-data-release
+          path: .release/artifact
+      - run: bun scripts/release.ts publish --directory .release/artifact
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Publish and verify immutable assets, then publish exact npm artifact
+        run: bun scripts/release.ts publish --directory .release/artifact --execute
+      - name: Publish release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" .release/artifact/*.tgz .release/artifact/SHA256SUMS .release/artifact/release-plan.json .release/artifact/snapshot/manifest.json --verify-tag --notes-file .release/artifact/notes.md
+          fi

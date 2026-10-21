@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "tcgdex/cards-database",
+  "sourceCommit": "9f90a62ec32ec00cd4ca3059f5ee9d61eae85a1c",
+  "sourceSetId": "30th-c",
+  "sourceDirectory": "data/Mega Evolution/30th Classic Collection",
+  "setId": "me55c",
+  "review": { "approved": false, "reviewedBy": null, "reviewedAt": null },
+  "cards": [
+    { "sourceNumber": "001", "canonicalId": "me55c-4", "canonicalNumber": "4" },
+    {
+      "sourceNumber": "012",
+      "canonicalId": "me55c-50",
+      "canonicalNumber": "50"
+    },
+    {
+      "sourceNumber": "019",
+      "canonicalId": "me55c-99",
+      "canonicalNumber": "99"
+    },
+    {
+      "sourceNumber": "020",
+      "canonicalId": "me55c-100",
+      "canonicalNumber": "100"
+    }
+  ]
+}

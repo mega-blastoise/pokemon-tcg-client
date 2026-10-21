@@ -1,0 +1,37 @@
+{
+  "name": "@johto-ai/tcg-tools",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Reviewed Pokémon TCG ingestion and reproducible snapshot tools.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mega-blastoise/pokemon-tcg-client.git",
+    "directory": "packages/tools"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "tcg-tools": "./dist/cli.js"
+  },
+  "engines": {
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "dependencies": {
+    "@johto-ai/tcg-client": "workspace:*",
+    "typescript": "~5.9.3",
+    "zod": "^4.1.0"
+  }
+}
