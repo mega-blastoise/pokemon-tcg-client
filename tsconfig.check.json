@@ -7,6 +7,12 @@
     "declarationMap": false,
     "allowImportingTsExtensions": true
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "packages/**/*.ts"],
+  "include": [
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "packages/**/*.ts",
+    "apps/**/*.ts",
+    "apps/**/*.tsx"
+  ],
   "exclude": ["**/dist/**", "**/node_modules/**"]
 }

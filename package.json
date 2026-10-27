@@ -7,16 +7,20 @@
     "bun": ">=1.4.3"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "bun scripts/build.ts",
     "check": "bun run build && tsc -p tsconfig.check.json && biome check .",
     "format": "biome check --write .",
-    "test": "bun test ./packages/client ./packages/tools ./tests",
+    "test": "bun test ./packages/client ./packages/tools ./packages/agent ./tests",
     "smoke": "bun scripts/smoke.ts",
     "audit:baseline": "bun packages/tools/dist/cli.js audit --source ../pokemon-tcg-data --output .local/baseline-audit",
-    "test:catalog": "bun scripts/audit-baseline.ts"
+    "test:catalog": "bun scripts/audit-baseline.ts",
+    "chat": "bun apps/cli/dist/bun.js",
+    "chat:node": "node apps/cli/dist/node.js",
+    "web": "bun apps/web/dist/server.js"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.0",
