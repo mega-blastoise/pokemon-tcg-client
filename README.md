@@ -67,6 +67,22 @@ The three packages have separate responsibilities:
 - `@johto-ai/tcg-data`: independently versioned SQLite and snapshot descriptor.
 - `@johto-ai/tcg-tools`: Bun maintainer CLI, review drafts, assets, and deterministic builds.
 
+## Conversational verification apps
+
+Two private apps search the catalog conversationally through Claude and double as a hands-on check that each runtime's client works. Both share `@johto-ai/tcg-agent`, which runs Claude through the [Agent Client Protocol](https://agentclientprotocol.com) adapter (`@agentclientprotocol/claude-agent-acp`) using your Claude Code login, and exposes the card tools to Claude as a per-session MCP server. Claude gets no built-in tools, user settings, or other MCP servers.
+
+```sh
+bun run build
+bun run chat          # Ink TUI on Bun (bun:sqlite)
+bun run chat:node     # the same TUI on Node (node:sqlite)
+bun run web           # http://localhost:4173, browser client in the page
+```
+
+- **TUI** ([apps/cli](apps/cli/README.md)): streaming chat, live tool calls with results as type-colored tables, `/doctor`, `/card`, `/find`, and `/sets`. Headless modes: `--doctor` exits non-zero on any failed check, and `-p "question"` prints one streamed answer.
+- **Web** ([apps/web](apps/web/README.md)): Claude's tool calls run *in the tab* with `@johto-ai/tcg-client/browser`. The page shows card grids, a detail drawer, ⌘K direct search, a diagnostics panel, and a log of every hash-verified snapshot fetch.
+
+All three use the newest `.local/catalog-check-*` snapshot (or `TCG_SNAPSHOT_DIR`) and the same 14 contract checks from `@johto-ai/tcg-agent/diagnostics`.
+
 Start with [the source review guide](docs/review.md) for a short reading order and the main checks to review. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the implementation/validation handoff, [SPEC.md](SPEC.md) for approved decisions, and [docs/maintainers.md](docs/maintainers.md) / [docs/releases.md](docs/releases.md) for operation.
 
 ## Initial release status
