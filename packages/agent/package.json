@@ -1,0 +1,46 @@
+{
+  "name": "@johto-ai/tcg-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Claude (ACP) conversational card-search backend for the TCG chat apps.",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics.d.ts",
+      "import": "./dist/diagnostics.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24.6.0",
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.97.0",
+    "@agentclientprotocol/sdk": "2.0.2"
+  },
+  "peerDependencies": {
+    "@johto-ai/tcg-client": "*"
+  }
+}
