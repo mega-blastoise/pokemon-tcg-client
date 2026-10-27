@@ -1,0 +1,28 @@
+{
+  "name": "@johto-ai/tcg-chat-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Conversational Pokémon TCG card search in the browser, backed by the browser client.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun build.ts",
+    "start": "bun dist/server.js"
+  },
+  "dependencies": {
+    "@johto-ai/tcg-agent": "workspace:*",
+    "@johto-ai/tcg-client": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}
