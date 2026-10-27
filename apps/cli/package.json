@@ -1,0 +1,31 @@
+{
+  "name": "@johto-ai/tcg-chat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Conversational Pokémon TCG card search in the terminal, on Bun or Node.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "tcg-chat-bun": "./dist/bun.js",
+    "tcg-chat-node": "./dist/node.js"
+  },
+  "engines": {
+    "node": ">=24.6.0",
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "build": "bun build.ts"
+  },
+  "dependencies": {
+    "@johto-ai/tcg-agent": "workspace:*",
+    "@johto-ai/tcg-client": "workspace:*",
+    "ink": "^8.0.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0"
+  }
+}
