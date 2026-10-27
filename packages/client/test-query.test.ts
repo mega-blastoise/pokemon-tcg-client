@@ -22,4 +22,6 @@ test("queries reject unsupported syntax fields and unbounded page sizes", () => 
   expect(() => normalizeCardQuery({ limit: 251 })).toThrow();
   expect(() => normalizeCardQuery({ offset: -1 })).toThrow();
   expect(() => normalizeCardQuery({ unsupported: true } as never)).toThrow();
+  // Expanded and Gym Leader Challenge are not modelled yet.
+  expect(() => normalizeCardQuery({ format: "expanded" } as never)).toThrow();
 });

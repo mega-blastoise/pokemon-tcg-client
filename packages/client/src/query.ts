@@ -12,6 +12,14 @@ const pageFields = {
   direction: z.enum(["asc", "desc"]).optional(),
 };
 const filter = z.string().min(1).max(500);
+/** Formats a card search can be limited to. Expanded and GLC are not modelled yet. */
+export const CARD_FORMATS = ["standard"] as const;
+export type CardFormat = (typeof CARD_FORMATS)[number];
+/**
+ * Regulation marks currently legal in Standard. Source legality flags are not
+ * verified, so format membership is derived from the printed mark instead.
+ */
+export const STANDARD_REGULATION_MARKS: readonly string[] = ["H", "I", "J"];
 /** Literal filters combine with AND; text is not a query-language expression. */
 export const cardQuerySchema = z
   .object({
@@ -23,6 +31,7 @@ export const cardQuerySchema = z
     subtype: filter.optional(),
     rarity: filter.optional(),
     regulationMark: filter.optional(),
+    format: z.enum(CARD_FORMATS).optional(),
     text: z.string().max(2000).optional(),
   })
   .strict();
@@ -144,6 +153,11 @@ export function matchesCard(
     entry.regulationMark !== query.regulationMark
   )
     return false;
+  if (
+    query.format === "standard" &&
+    !STANDARD_REGULATION_MARKS.includes(entry.regulationMark ?? "")
+  )
+    return false;
   return normalizeSearchText(query.text ?? "")
     .split(" ")
     .filter(Boolean)
@@ -240,6 +254,12 @@ export function cardSqlPlan(query: NormalizedCardQuery): {
   if (query.rarity !== undefined) add("rarity = ?", query.rarity);
   if (query.regulationMark !== undefined)
     add("regulation_mark = ?", query.regulationMark);
+  if (query.format === "standard") {
+    conditions.push(
+      `regulation_mark IN (${STANDARD_REGULATION_MARKS.map(() => "?").join(", ")})`,
+    );
+    parameters.push(...STANDARD_REGULATION_MARKS);
+  }
   for (const term of normalizeSearchText(query.text ?? "")
     .split(" ")
     .filter(Boolean))

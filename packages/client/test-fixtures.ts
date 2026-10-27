@@ -115,10 +115,11 @@ export async function createFixture(options: { punctuation?: boolean } = {}) {
   const sets = [fixtureSet("old", 4, "2020-01-01"), fixtureSet("new", 1)];
   // Deliberate input disorder catches lexicographic sorting and unstable pagination.
   const cards = [
-    fixtureCard("old", "10", "Zubat"),
+    // An older mark and a missing mark keep the Standard format filter honest.
+    { ...fixtureCard("old", "10", "Zubat"), regulationMark: "G" },
     fixtureCard("old", "2", "Pikáchu"),
     fixtureCard("old", "182a", "Raichu", "Search your deck."),
-    fixtureCard("old", "R", "Red"),
+    { ...fixtureCard("old", "R", "Red"), regulationMark: null },
     fixtureCard("new", "1", "Pikachu"),
   ];
   if (options.punctuation) {

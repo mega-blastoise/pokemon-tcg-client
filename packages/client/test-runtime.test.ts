@@ -53,6 +53,9 @@ describe("universal client", () => {
       { sort: "number" },
       { sort: "name", direction: "desc", offset: 1, limit: 2 },
       { name: "' OR 1=1 --" },
+      { format: "standard" },
+      { format: "standard", setId: "old", sort: "number" },
+      { format: "standard", regulationMark: "G" },
     ];
     for (const query of queries)
       expect(await browser.cards.search(query)).toEqual(
@@ -63,6 +66,16 @@ describe("universal client", () => {
         (card) => card.number,
       ),
     ).toEqual(["2", "10", "182a", "R"]);
+    // Standard keeps marks H, I and J; Zubat (G) and Red (no mark) drop out.
+    expect(
+      (
+        await native.cards.search({ setId: "old", format: "standard" })
+      ).items.map((card) => card.id),
+    ).toEqual(["old-2", "old-182a"]);
+    expect(
+      (await browser.cards.search({ format: "standard", regulationMark: "G" }))
+        .total,
+    ).toBe(0);
     const ids = ["old-2", "missing-99", "old-2", "old-R"];
     expect(await browser.cards.getMany(ids)).toEqual(
       await native.cards.getMany(ids),
